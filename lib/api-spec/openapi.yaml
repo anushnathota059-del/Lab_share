@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: equipment
+    description: Shared electronics laboratory equipment
+  - name: bookings
+    description: Student equipment booking requests
 paths:
   /healthz:
     get:
@@ -24,6 +28,99 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /equipment:
+    get:
+      operationId: listEquipment
+      tags: [equipment]
+      summary: List equipment available to students
+      responses:
+        "200":
+          description: Equipment list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Equipment"
+  /equipment/{id}:
+    get:
+      operationId: getEquipment
+      tags: [equipment]
+      summary: Get equipment details and eligibility
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Equipment details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Equipment"
+        "404":
+          description: Equipment not found
+  /bookings:
+    get:
+      operationId: listBookings
+      tags: [bookings]
+      summary: List booking requests for student and owner views
+      responses:
+        "200":
+          description: Booking requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Booking"
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Submit an equipment booking request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingInput"
+      responses:
+        "201":
+          description: Booking request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "400":
+          description: Invalid booking request
+  /bookings/{id}/status:
+    patch:
+      operationId: updateBookingStatus
+      tags: [bookings]
+      summary: Update a request status from the owner dashboard
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookingStatusUpdate"
+      responses:
+        "200":
+          description: Updated booking request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          description: Booking request not found
 components:
   schemas:
     HealthStatus:
@@ -33,4 +130,50 @@ components:
           type: string
       required:
         - status
+    Equipment:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: string }
+        description: { type: string }
+        location: { type: string }
+        availability: { type: string, enum: [available, limited, unavailable] }
+        imageUrl: { type: string }
+        rules:
+          type: array
+          items: { type: string }
+        eligibility:
+          type: array
+          items: { type: string }
+      required: [id, name, category, description, location, availability, imageUrl, rules, eligibility]
+    Booking:
+      type: object
+      properties:
+        id: { type: integer }
+        equipmentId: { type: integer }
+        equipmentName: { type: string }
+        studentName: { type: string }
+        studentEmail: { type: string }
+        projectPurpose: { type: string }
+        requestedDate: { type: string, format: date }
+        requestedTime: { type: string }
+        status: { type: string, enum: [pending, approved, rejected, waitlisted] }
+        createdAt: { type: string, format: date-time }
+      required: [id, equipmentId, equipmentName, studentName, studentEmail, projectPurpose, requestedDate, requestedTime, status, createdAt]
+    BookingInput:
+      type: object
+      properties:
+        equipmentId: { type: integer }
+        studentName: { type: string, minLength: 1, maxLength: 120 }
+        studentEmail: { type: string, format: email, maxLength: 254 }
+        projectPurpose: { type: string, minLength: 10, maxLength: 1000 }
+        requestedDate: { type: string, format: date }
+        requestedTime: { type: string, minLength: 1, maxLength: 40 }
+      required: [equipmentId, studentName, studentEmail, projectPurpose, requestedDate, requestedTime]
+    BookingStatusUpdate:
+      type: object
+      properties:
+        status: { type: string, enum: [pending, approved, rejected, waitlisted] }
+      required: [status]
 

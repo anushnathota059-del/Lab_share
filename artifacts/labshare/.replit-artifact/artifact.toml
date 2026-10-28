@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "LabShare"
+description = "A student dashboard for discovering shared electronics lab equipment, checking eligibility and availability, and submitting and tracking booking requests."
+version = "1.0.0"
+id = "artifacts/labshare"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25458
+
+[services.development]
+run = "pnpm --filter @workspace/labshare run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/labshare", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/labshare/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25458"
+BASE_PATH = "/"

@@ -1,0 +1,1 @@
+- [LabShare request workflow](labshare-request-workflow.md) — Keep student and owner actions on shared persistent booking records; treat current demo data as fictional.
