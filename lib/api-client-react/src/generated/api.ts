@@ -24,6 +24,7 @@ import type {
   BookingInput,
   BookingStatusUpdate,
   Equipment,
+  ErrorResponse,
   HealthStatus
 } from './api.schemas';
 
@@ -494,7 +495,7 @@ return customFetch<Booking>(getUpdateBookingStatusUrl(id),
 
 export const getUpdateBookingStatusMutationKey = () => ['updateBookingStatus'] as const;
 
-export const getUpdateBookingStatusMutationOptions = <TError = ErrorType<void>,
+export const getUpdateBookingStatusMutationOptions = <TError = ErrorType<void | ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBookingStatus>>, TError,UpdateBookingStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateBookingStatus>>, TError,UpdateBookingStatusMutationVariables, TContext> => {
 
@@ -523,13 +524,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateBookingStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateBookingStatus>>>
     export type UpdateBookingStatusMutationBody = BodyType<BookingStatusUpdate>
-    export type UpdateBookingStatusMutationError = ErrorType<void>
+    export type UpdateBookingStatusMutationError = ErrorType<void | ErrorResponse>
     export type UpdateBookingStatusMutationVariables = {id: number;data: BodyType<BookingStatusUpdate>}
 
     /**
  * @summary Update a request status from the owner dashboard
  */
-export const useUpdateBookingStatus = <TError = ErrorType<void>,
+export const useUpdateBookingStatus = <TError = ErrorType<void | ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateBookingStatus>>, TError,UpdateBookingStatusMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateBookingStatus>>,

@@ -8,10 +8,11 @@ import {
   ArrowRight, BookOpenCheck, CalendarDays, Check, CheckCircle2,
   ChevronRight, Clock3, FlaskConical, MapPin, Search, SlidersHorizontal,
   Sparkles, Wrench, XCircle, Hourglass, ClipboardList, AlertCircle,
+  Mail, UserRound, CheckCheck,
 } from 'lucide-react';
 import {
   useCreateBooking, useGetEquipment, useListBookings, useListEquipment,
-  getGetEquipmentQueryKey, getListBookingsQueryKey,
+  getGetEquipmentQueryKey, getListBookingsQueryKey, useUpdateBookingStatus,
 } from '@workspace/api-client-react';
 import type { Booking, BookingInput, Equipment } from '@workspace/api-client-react';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +38,7 @@ function Shell({ children }: { children: ReactNode }) {
         <nav className="nav-links" aria-label="Main navigation">
           <Link href="/" className={`nav-link ${location === '/' || location.startsWith('/equipment') ? 'active' : ''}`} data-testid="link-discover">Discover</Link>
           <Link href="/requests" className={`nav-link ${location === '/requests' ? 'active' : ''}`} data-testid="link-my-requests">My requests</Link>
+          <Link href="/owner/requests" className={`nav-link ${location === '/owner/requests' ? 'active' : ''}`} data-testid="link-owner-requests">Owner workspace</Link>
         </nav>
         <div className="nav-right"><span className="campus-chip"><span className="campus-dot">●</span> Campus lab network</span></div>
       </div>
@@ -311,12 +313,133 @@ function RequestsPage() {
   </div>;
 }
 
+type OwnerActionStatus = 'approved' | 'rejected' | 'waitlisted';
+
+function OwnerRequestsPage() {
+  const bookingsQuery = useListBookings();
+  const updateStatus = useUpdateBookingStatus();
+  const queryClient = useQueryClient();
+  const [activeBookingId, setActiveBookingId] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<{ id: number; kind: 'success' | 'conflict' | 'error'; message: string } | null>(null);
+  const pendingBookings = (bookingsQuery.data ?? [])
+    .filter((booking) => booking.status === 'pending')
+    .slice()
+    .sort((a, b) => a.requestedDate.localeCompare(b.requestedDate) || a.requestedTime.localeCompare(b.requestedTime));
+
+  const formatRequestedDate = (value: string) => {
+    const date = new Date(`${value.slice(0, 10)}T12:00:00`);
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  const reviewRequest = async (id: number, status: OwnerActionStatus) => {
+    setActiveBookingId(id);
+    setFeedback(null);
+    try {
+      await updateStatus.mutateAsync({ id, data: { status } });
+      await queryClient.invalidateQueries({ queryKey: getListBookingsQueryKey() });
+      const label = status === 'approved' ? 'approved' : status === 'rejected' ? 'rejected' : 'added to the waitlist';
+      setFeedback({ id, kind: 'success', message: `Request #${id} ${label}. Student request statuses have been refreshed.` });
+    } catch (error) {
+      const apiError = error as { status?: number; data?: { error?: string } };
+      if (apiError.status === 409) {
+        setFeedback({
+          id,
+          kind: 'conflict',
+          message: apiError.data?.error || 'This time slot has already been approved for this equipment. The request remains pending.',
+        });
+      } else {
+        setFeedback({
+          id,
+          kind: 'error',
+          message: 'We could not update this request. It remains pending; please try again.',
+        });
+      }
+    } finally {
+      setActiveBookingId(null);
+    }
+  };
+
+  return <div className="fade-in owner-page">
+    <div className="owner-heading">
+      <div>
+        <div className="eyebrow">Lab team · owner workspace</div>
+        <h1 className="page-title">Review requests</h1>
+        <p className="page-subtitle">A focused queue for decisions that still need a lab owner. Check the project, then confirm the time slot.</p>
+      </div>
+      {!bookingsQuery.isLoading && !bookingsQuery.isError && <div className="owner-queue-count" aria-label={`${pendingBookings.length} pending requests`}>
+        <span className="owner-count-number">{pendingBookings.length}</span>
+        <span>awaiting review</span>
+      </div>}
+    </div>
+    <div className="owner-queue-note"><Clock3 size={16} /><span>Only pending requests appear here. Student views remain read-only.</span></div>
+    {feedback?.kind === 'success' && <div className="owner-global-feedback success" role="status" data-testid="owner-action-success"><CheckCircle2 size={17} /><span>{feedback.message}</span></div>}
+    {bookingsQuery.isLoading ? <div className="owner-skeletons" aria-label="Loading pending requests">
+      {[1, 2, 3].map((item) => <div className="owner-skeleton-card" key={item}>
+        <div className="skeleton" style={{ height: 18, width: '44%' }} />
+        <div className="skeleton" style={{ height: 12, width: '68%', marginTop: 15 }} />
+        <div className="skeleton" style={{ height: 48, marginTop: 20 }} />
+      </div>)}
+    </div> : bookingsQuery.isError ? <QueryError retry={() => void bookingsQuery.refetch()} message="Pending booking requests could not be loaded." /> :
+      pendingBookings.length === 0 ? <div className="owner-empty state-panel">
+        <div className="state-icon"><CheckCheck size={21} /></div>
+        <h3>The review queue is clear</h3>
+        <p>There are no pending equipment requests right now. New student requests will appear here when they come in.</p>
+        <Link href="/requests" className="button button-outline" data-testid="link-owner-student-requests">View student request list <ArrowRight size={15} /></Link>
+      </div> :
+      <div className="owner-request-list">
+        {pendingBookings.map((booking) => {
+          const isWorking = activeBookingId === booking.id;
+          const notice = feedback?.id === booking.id && feedback.kind !== 'success' ? feedback : null;
+          return <article className="owner-request-card" key={booking.id} data-testid={`owner-request-${booking.id}`}>
+            <div className="owner-card-top">
+              <div>
+                <span className="owner-request-tag">Pending review</span>
+                <h2>{booking.equipmentName}</h2>
+              </div>
+              <span className="owner-request-id">Request #{booking.id}</span>
+            </div>
+            <div className="owner-card-details">
+              <div className="owner-detail-item">
+                <span className="owner-detail-icon"><CalendarDays size={16} /></span>
+                <div><span className="owner-detail-label">Requested slot</span><strong>{formatRequestedDate(booking.requestedDate)}</strong><span className="owner-detail-value">{booking.requestedTime}</span></div>
+              </div>
+              <div className="owner-detail-item">
+                <span className="owner-detail-icon"><UserRound size={16} /></span>
+                <div><span className="owner-detail-label">Student</span><strong>{booking.studentName}</strong><a className="owner-email" href={`mailto:${booking.studentEmail}`}><Mail size={13} />{booking.studentEmail}</a></div>
+              </div>
+            </div>
+            <div className="owner-purpose">
+              <span className="owner-detail-label">Project purpose</span>
+              <p>{booking.projectPurpose}</p>
+            </div>
+            {notice && <div className={`owner-feedback ${notice.kind}`} role={notice.kind === 'success' ? 'status' : 'alert'} data-testid={`owner-feedback-${booking.id}`}>
+              {notice.kind === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+              <span>{notice.message}</span>
+            </div>}
+            <div className="owner-actions" aria-label={`Actions for request ${booking.id}`}>
+              <button className="button owner-action-approve" onClick={() => void reviewRequest(booking.id, 'approved')} disabled={isWorking || activeBookingId !== null} data-testid={`button-approve-${booking.id}`}>
+                {isWorking ? 'Saving…' : <><Check size={15} /> Approve</>}
+              </button>
+              <button className="button owner-action-waitlist" onClick={() => void reviewRequest(booking.id, 'waitlisted')} disabled={isWorking || activeBookingId !== null} data-testid={`button-waitlist-${booking.id}`}>
+                <Hourglass size={15} /> Waitlist
+              </button>
+              <button className="button owner-action-reject" onClick={() => void reviewRequest(booking.id, 'rejected')} disabled={isWorking || activeBookingId !== null} data-testid={`button-reject-${booking.id}`}>
+                <XCircle size={15} /> Reject
+              </button>
+            </div>
+          </article>;
+        })}
+      </div>}
+  </div>;
+}
+
 function Router() {
   return <RoutedErrorBoundary><Shell><Switch>
     <Route path="/" component={DiscoverPage} />
     <Route path="/equipment/:id" component={DetailPage} />
     <Route path="/bookings/new" component={BookingPage} />
     <Route path="/requests" component={RequestsPage} />
+    <Route path="/owner/requests" component={OwnerRequestsPage} />
     <Route component={NotFound} />
   </Switch></Shell></RoutedErrorBoundary>;
 }

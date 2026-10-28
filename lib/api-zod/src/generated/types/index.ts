@@ -13,4 +13,5 @@ export * from './bookingStatusUpdate';
 export * from './bookingStatusUpdateStatus';
 export * from './equipment';
 export * from './equipmentAvailability';
+export * from './errorResponse';
 export * from './healthStatus';

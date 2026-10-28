@@ -121,6 +121,12 @@ paths:
                 $ref: "#/components/schemas/Booking"
         "404":
           description: Booking request not found
+        "409":
+          description: Another request for this equipment and time is already approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -176,4 +182,9 @@ components:
       properties:
         status: { type: string, enum: [pending, approved, rejected, waitlisted] }
       required: [status]
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
 

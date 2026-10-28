@@ -89,3 +89,7 @@ export interface BookingStatusUpdate {
   status: BookingStatusUpdateStatus;
 }
 
+export interface ErrorResponse {
+  error: string;
+}
+
